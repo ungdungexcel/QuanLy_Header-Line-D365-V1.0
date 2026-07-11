@@ -98,41 +98,19 @@ st.markdown(
         font-weight: 700 !important;
         color: #0f172a !important;
     }
-    /* Bảng HTML — tiêu đề cột đậm */
-    .ql-df-wrap {
-        overflow: auto;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        background: #fff;
-        width: 100%;
+    /* Lưới bảng Streamlit — đường kẻ ô rõ */
+    [data-testid="stDataFrame"] [role="gridcell"],
+    [data-testid="stDataEditor"] [role="gridcell"],
+    [data-testid="stDataFrame"] [role="columnheader"],
+    [data-testid="stDataEditor"] [role="columnheader"] {
+        border-right: 1px solid #cbd5e1 !important;
+        border-bottom: 1px solid #cbd5e1 !important;
     }
-    table.ql-df {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.9rem;
-        margin: 0;
+    [data-testid="stDataFrame"] > div,
+    [data-testid="stDataEditor"] > div {
+        border: 1px solid #94a3b8 !important;
+        border-radius: 4px;
     }
-    table.ql-df thead th {
-        font-weight: 700 !important;
-        color: #0f172a !important;
-        background: #f1f5f9 !important;
-        border-bottom: 1px solid #cbd5e1;
-        border-right: 1px solid #e2e8f0;
-        padding: 0.45rem 0.55rem;
-        text-align: left;
-        white-space: nowrap;
-        position: sticky;
-        top: 0;
-        z-index: 1;
-    }
-    table.ql-df tbody td {
-        color: #334155;
-        border-bottom: 1px solid #f1f5f9;
-        border-right: 1px solid #f8fafc;
-        padding: 0.35rem 0.55rem;
-        white-space: nowrap;
-    }
-    table.ql-df tbody tr:hover td { background: #f8fafc; }
     section[data-testid="stSidebar"] label,
     section[data-testid="stSidebar"] span,
     section[data-testid="stSidebar"] p {
@@ -1360,15 +1338,11 @@ def _show_map_table(col_map: dict, *, compact: bool = False) -> None:
 
 
 def _show_df(df: pd.DataFrame, *, height: int = 360) -> None:
-    """Hiển thị bảng với tiêu đề cột in đậm (HTML)."""
+    """Hiển thị bảng dạng lưới Streamlit (tiêu đề cột in đậm qua CSS)."""
     if df is None or df.empty:
         st.caption("Không có dữ liệu.")
         return
-    html = df.to_html(index=False, escape=True, classes="ql-df", border=0)
-    st.markdown(
-        f'<div class="ql-df-wrap" style="max-height:{int(height)}px">{html}</div>',
-        unsafe_allow_html=True,
-    )
+    st.dataframe(df, use_container_width=True, hide_index=True, height=height)
 
 
 def _error_table(errors: list[dict], title: str, level: str) -> None:
