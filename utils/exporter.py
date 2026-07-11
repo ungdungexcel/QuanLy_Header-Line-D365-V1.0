@@ -87,7 +87,30 @@ def format_dataframe_for_export(df: pd.DataFrame) -> pd.DataFrame:
 
 def _format_customer_account(value) -> str:
     """Giu nguyen Store code, bao gom so 0 dau (vd: 00232)."""
-    return str(value).strip()
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return ""
+    if isinstance(value, (int,)):
+        return str(value)
+    if isinstance(value, float) and value == int(value):
+        # Da mat so 0 dau neu doc bang so — chi con phan nguyen
+        return str(int(value))
+    text = str(value).strip()
+    if text.lower() in {"nan", "none", "nat"}:
+        return ""
+    # "232.0" tu Excel float -> "232"
+    if re.fullmatch(r"\d+\.0+", text):
+        return text.split(".", 1)[0]
+    return text
+
+
+# Cot Header can giu dang text (so 0 dau)
+_TEXT_EXPORT_COLUMNS = {
+    "Customer account",
+    "Invoice account",
+    "Customer requisition",
+    "Sales order",
+    "Số SO#",
+}
 
 
 def _format_vat_display(value) -> str:
@@ -555,6 +578,20 @@ def _pop_vat_split_flags(df: pd.DataFrame) -> tuple[pd.DataFrame, list[bool] | N
     return df.drop(columns=[VAT_SPLIT_HL_COL]), flags
 
 
+def _apply_text_column_format(worksheet, columns: list[str], n_rows: int) -> None:
+    """Ep dinh dang Text (@) de Excel khong mat so 0 dau (Customer account...)."""
+    for col_idx, col_name in enumerate(columns, start=1):
+        if str(col_name).strip() not in _TEXT_EXPORT_COLUMNS:
+            continue
+        for row_idx in range(2, n_rows + 2):
+            cell = worksheet.cell(row=row_idx, column=col_idx)
+            if cell.value is None:
+                cell.value = ""
+            else:
+                cell.value = str(cell.value)
+            cell.number_format = "@"
+
+
 def to_excel_bytes(*sheets: tuple[str, pd.DataFrame]) -> bytes:
     """Ghi nhieu sheet vao bytes Excel — cot ngay da dinh dang dd/mm/yyyy."""
     buffer = io.BytesIO()
@@ -566,6 +603,12 @@ def to_excel_bytes(*sheets: tuple[str, pd.DataFrame]) -> bytes:
             drop_cols = [c for c in export_df.columns if str(c).startswith("__")]
             if drop_cols:
                 export_df = export_df.drop(columns=drop_cols)
+            # Ep cot Customer account... sang chuoi truoc khi ghi
+            for col in export_df.columns:
+                if str(col).strip() in _TEXT_EXPORT_COLUMNS:
+                    export_df[col] = export_df[col].map(
+                        lambda v: "" if v is None or (isinstance(v, float) and pd.isna(v)) else str(v)
+                    )
             export_df.to_excel(writer, sheet_name=sheet_name, index=False)
 
             worksheet = writer.sheets[sheet_name]
@@ -573,6 +616,7 @@ def to_excel_bytes(*sheets: tuple[str, pd.DataFrame]) -> bytes:
                 _style_line_header(worksheet, list(export_df.columns))
             if hl_flags:
                 _style_vat_split_rows(worksheet, hl_flags, len(export_df.columns))
+            _apply_text_column_format(worksheet, list(export_df.columns), len(export_df))
             for col_idx, col_name in enumerate(export_df.columns, start=1):
                 if not _is_date_column(col_name):
                     continue

@@ -59,7 +59,8 @@ def load_po_dataframe(uploaded_file) -> pd.DataFrame:
     if name.endswith(".csv"):
         df = _read_csv_bytes(data)
     else:
-        df = pd.read_excel(io.BytesIO(data), engine="openpyxl")
+        # dtype=str giu so 0 dau (Store code / Customer account)
+        df = pd.read_excel(io.BytesIO(data), engine="openpyxl", dtype=str)
         df = _cast_text_columns(df)
 
     return df.fillna("")
