@@ -12,6 +12,7 @@ import pandas as pd
 import streamlit as st
 
 from config import OPTIONAL_FIELDS, REQUIRED_FIELDS
+import config as _config_mod
 import utils.loader as _loader_mod
 import utils.processor as _processor_mod
 import utils.tax as _tax_mod
@@ -19,11 +20,14 @@ import utils.exporter as _exporter_mod
 
 import utils.d365_merge as _d365_merge_mod
 
+# Reload config truoc exporter de nhan cot Line moi (Thuế VAT...)
+importlib.reload(_config_mod)
 importlib.reload(_loader_mod)
 importlib.reload(_tax_mod)
 importlib.reload(_processor_mod)
 importlib.reload(_exporter_mod)
 importlib.reload(_d365_merge_mod)
+from config import OPTIONAL_FIELDS, REQUIRED_FIELDS
 from utils.loader import (
     load_po_dataframe,
     load_po_template,

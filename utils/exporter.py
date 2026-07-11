@@ -15,6 +15,7 @@ from config import (
     D365_LINE_REQUIRED_COLUMNS,
     EXPORT_DATETIME_FORMAT,
 )
+import config as _config
 
 # Cot an danh dau dong tach VAT (bo truoc khi ghi Excel)
 VAT_SPLIT_HL_COL = "__vat_split_hl"
@@ -424,7 +425,7 @@ def build_d365_files(df_header: pd.DataFrame, df_lines: pd.DataFrame) -> tuple[p
             "Mode of delivery": "",
         }
     )
-    d365_header = d365_header.reindex(columns=D365_HEADER_COLUMNS).fillna("")
+    d365_header = d365_header.reindex(columns=_config.D365_HEADER_COLUMNS).fillna("")
 
     line_site = _series_text(df_lines, "site")
     line_wh = _series_text(df_lines, "warehouse")
@@ -481,7 +482,7 @@ def build_d365_files(df_header: pd.DataFrame, df_lines: pd.DataFrame) -> tuple[p
             "Thuế VAT": _line_vat_values(df_lines, df_header).to_numpy(),
         }
     )
-    d365_line = d365_line.reindex(columns=D365_LINE_COLUMNS).fillna("")
+    d365_line = d365_line.reindex(columns=_config.D365_LINE_COLUMNS).fillna("")
 
     d365_header, d365_line = _attach_vat_split_flags(d365_header, d365_line, df_header, df_lines)
     return format_dataframe_for_export(d365_header), format_dataframe_for_export(d365_line)
@@ -494,7 +495,7 @@ def apply_sales_order_to_header(d365_header: pd.DataFrame, mapping: dict[str, st
         return out
     hl = out[VAT_SPLIT_HL_COL] if VAT_SPLIT_HL_COL in out.columns else None
     out["Sales order"] = out["Số SO#"].astype(str).str.strip().map(mapping).fillna("")
-    out = out.reindex(columns=D365_HEADER_COLUMNS).fillna("")
+    out = out.reindex(columns=_config.D365_HEADER_COLUMNS).fillna("")
     if hl is not None:
         out[VAT_SPLIT_HL_COL] = hl.to_numpy() if hasattr(hl, "to_numpy") else hl
     return out
