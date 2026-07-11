@@ -43,7 +43,7 @@ from utils.validator import normalize_columns, validate_orders
 
 # ── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Tách đơn D365",
+    page_title="Tách đơn D365-By.Tam",
     page_icon="📦",
     layout="wide",
     initial_sidebar_state="expanded",
