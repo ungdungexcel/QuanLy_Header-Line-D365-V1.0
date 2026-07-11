@@ -24,7 +24,13 @@ importlib.reload(_tax_mod)
 importlib.reload(_processor_mod)
 importlib.reload(_exporter_mod)
 importlib.reload(_d365_merge_mod)
-from utils.loader import load_po_dataframe, load_po_template, load_vat_template
+from utils.loader import (
+    load_po_dataframe,
+    load_po_template,
+    load_vat_persisted,
+    load_vat_template,
+    save_vat_persisted,
+)
 from utils.processor import build_vat_split_report, split_orders_by_po_and_item
 from utils.exporter import (
     apply_sales_order_to_header,
@@ -222,11 +228,11 @@ st.markdown(
         min-width: 0 !important;
     }
     section[data-testid="stSidebar"][aria-expanded="true"] {
-        min-width: 380px !important;
-        width: 380px !important;
+        min-width: 400px !important;
+        width: 400px !important;
     }
     section[data-testid="stSidebar"][aria-expanded="true"] > div:first-child {
-        width: 380px !important;
+        width: 400px !important;
     }
     section[data-testid="stSidebar"] [data-testid="stSidebarContent"],
     section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {
@@ -240,60 +246,109 @@ st.markdown(
         width: 100% !important;
     }
     section[data-testid="stSidebar"] h3 {
-        font-size: 0.95rem !important;
-        margin: 0.1rem 0 0.3rem 0 !important;
+        font-size: 1rem !important;
+        margin: 0.1rem 0 0.15rem 0 !important;
+        color: #0f172a !important;
     }
     section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h3 {
-        font-size: 0.95rem !important;
+        font-size: 1rem !important;
     }
     section[data-testid="stSidebar"] div[data-testid="stButton"] > button,
     section[data-testid="stSidebar"] div[data-testid="stDownloadButton"] > button {
         white-space: nowrap !important;
-        font-size: 0.9rem !important;
-        padding: 0.3rem 0.45rem !important;
+        font-size: 0.85rem !important;
+        padding: 0.28rem 0.4rem !important;
         min-height: 2rem !important;
         line-height: 1.2 !important;
     }
+    /* Sidebar uploader — gọn, không tràn đè caption */
+    section[data-testid="stSidebar"] [data-testid="stFileUploader"] {
+        margin-bottom: 0.55rem !important;
+    }
     section[data-testid="stSidebar"] [data-testid="stFileUploader"] section {
-        padding: 0.25rem 0.5rem !important;
-        min-height: 2.3rem !important;
-        max-height: 2.5rem !important;
+        padding: 0.35rem 0.55rem !important;
+        min-height: 2.6rem !important;
+        max-height: none !important;
+        overflow: hidden !important;
     }
     section[data-testid="stSidebar"] [data-testid="stFileUploader"] svg {
-        width: 1.1rem !important;
-        height: 1.1rem !important;
+        width: 1rem !important;
+        height: 1rem !important;
+        flex-shrink: 0 !important;
     }
     section[data-testid="stSidebar"] [data-testid="stFileUploader"] [data-testid="stFileUploaderDropzoneInstructions"] {
-        font-size: 0.85rem !important;
-        line-height: 1.15 !important;
+        font-size: 0.8rem !important;
+        line-height: 1.2 !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stFileUploader"] [data-testid="stFileUploaderDropzoneInstructions"] span {
+        display: block !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
     }
     section[data-testid="stSidebar"] [data-testid="stFileUploader"] [data-testid="stFileUploaderDropzoneInstructions"] small {
         display: none !important;
     }
     section[data-testid="stSidebar"] [data-testid="stFileUploader"] button {
-        padding: 0.15rem 0.5rem !important;
-        font-size: 0.85rem !important;
-        min-height: 1.5rem !important;
+        padding: 0.15rem 0.45rem !important;
+        font-size: 0.8rem !important;
+        min-height: 1.45rem !important;
     }
     section[data-testid="stSidebar"] [data-testid="stFileUploader"] [data-testid="stFileUploaderFileList"],
     section[data-testid="stSidebar"] [data-testid="stFileUploader"] ul {
-        min-height: 2.3rem !important;
-        max-height: 2.5rem !important;
+        min-height: 2.4rem !important;
+        max-height: 2.6rem !important;
         padding: 0.25rem 0.5rem !important;
     }
     section[data-testid="stSidebar"] [data-testid="stCaption"] {
-        font-size: 0.85rem !important;
+        font-size: 0.8rem !important;
+        line-height: 1.35 !important;
+        color: #64748b !important;
     }
     section[data-testid="stSidebar"] hr {
-        margin: 0.4rem 0 !important;
+        margin: 0.45rem 0 !important;
+        border-color: #e2e8f0 !important;
+    }
+    section[data-testid="stSidebar"] div[data-testid="stExpander"] {
+        margin-top: 0.35rem !important;
     }
     section[data-testid="stSidebar"] div[data-testid="stExpander"] summary {
-        padding-top: 0.25rem !important;
-        padding-bottom: 0.25rem !important;
+        padding-top: 0.3rem !important;
+        padding-bottom: 0.3rem !important;
+        font-size: 0.9rem !important;
     }
     section[data-testid="stSidebar"] [data-testid="stDataFrame"],
     section[data-testid="stSidebar"] [data-testid="stDataEditor"] {
         width: 100% !important;
+        margin-top: 0.15rem !important;
+    }
+    .tax-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.4rem;
+        margin: 0.15rem 0 0.4rem 0;
+        padding: 0.3rem 0.5rem;
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        border-radius: 5px;
+        font-size: 0.8rem;
+        color: #475569;
+        line-height: 1.3;
+    }
+    .tax-status b { color: #0f172a; font-weight: 650; }
+    .tax-status span.muted { color: #64748b; font-size: 0.75rem; }
+    .tax-sec-title {
+        margin: 0.55rem 0 0.15rem 0;
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+    .tax-sec-hint {
+        margin: 0 0 0.4rem 0;
+        font-size: 0.78rem;
+        color: #64748b;
+        line-height: 1.3;
     }
     [data-testid="stFileUploader"] section {
         border-radius: 6px; border: 1.5px dashed #93c5fd !important; background: #eff6ff;
@@ -839,6 +894,22 @@ def _default_tax_df() -> pd.DataFrame:
     return _normalize_tax_df(load_vat_template())
 
 
+def _load_startup_tax_df() -> pd.DataFrame:
+    """Ưu tiên bảng thuế đã lưu local; không có thì dùng mẫu."""
+    persisted = load_vat_persisted()
+    if persisted is not None and not persisted.empty:
+        return _normalize_tax_df(persisted)
+    return _default_tax_df()
+
+
+def _persist_tax_df(df: pd.DataFrame) -> None:
+    """Ghi bảng thuế ra data/VAT_Tax.xlsx để giữ sau F5."""
+    try:
+        save_vat_persisted(_normalize_tax_df(df))
+    except Exception as e:
+        st.warning(f"Không lưu được bảng thuế ra file: {e}")
+
+
 def _prepare_tax_df_for_editor(df: pd.DataFrame) -> pd.DataFrame:
     """Chuẩn hóa cột để hiển thị/sửa — giữ dòng trống khi user thêm mới."""
     work = df.copy()
@@ -913,7 +984,7 @@ def _vat_split_warnings(df_lines: pd.DataFrame) -> list[dict]:
 
 def _init_tax_session() -> None:
     if TAX_SESSION_KEY not in st.session_state:
-        st.session_state[TAX_SESSION_KEY] = _default_tax_df().copy()
+        st.session_state[TAX_SESSION_KEY] = _load_startup_tax_df().copy()
 
 
 def _load_tax_upload(uploaded_file) -> None:
@@ -926,13 +997,21 @@ def _load_tax_upload(uploaded_file) -> None:
         st.warning("File thuế trống — giữ nguyên dữ liệu hiện tại.")
         return
 
-    st.session_state[TAX_SESSION_KEY] = _normalize_tax_df(loaded_tax)
+    normalized = _normalize_tax_df(loaded_tax)
+    st.session_state[TAX_SESSION_KEY] = normalized
     st.session_state.tax_loaded_sig = f"{uploaded_file.name}:{uploaded_file.size}"
-    st.success(f"Đã nạp {len(st.session_state[TAX_SESSION_KEY])} dòng từ **{uploaded_file.name}**")
+    _persist_tax_df(normalized)
+    st.success(f"Đã nạp **{len(normalized)}** dòng và lưu local")
 
 
 def _render_tax_sidebar() -> None:
     _init_tax_session()
+
+    st.markdown(
+        '<div class="tax-sec-title">Bảng thuế VAT</div>'
+        '<p class="tax-sec-hint">Map Item → VAT · thiếu mã sẽ chặn tách SO</p>',
+        unsafe_allow_html=True,
+    )
 
     t1, t2, t3 = st.columns(3, gap="small")
     with t1:
@@ -947,18 +1026,20 @@ def _render_tax_sidebar() -> None:
         )
     with t2:
         st.download_button(
-            "Tải",
+            "Xuất",
             data=_tax_df_to_bytes(st.session_state[TAX_SESSION_KEY]),
             file_name=TAX_CHECK_SAMPLE_FILENAME,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
             key="tax_sample_dl",
-            help="Tải bảng thuế hiện tại",
+            help="Xuất bảng thuế hiện tại ra Excel",
         )
     with t3:
         if st.button("Reset", use_container_width=True, key="tax_reset", help="Đặt lại bảng thuế mặc định"):
-            st.session_state[TAX_SESSION_KEY] = _default_tax_df().copy()
+            reset_df = _default_tax_df().copy()
+            st.session_state[TAX_SESSION_KEY] = reset_df
             st.session_state.pop("tax_loaded_sig", None)
+            _persist_tax_df(reset_df)
             st.rerun()
 
     tax_upload = st.file_uploader(
@@ -966,7 +1047,7 @@ def _render_tax_sidebar() -> None:
         type=["csv", "xlsx", "xls"],
         key="tax_file_upload",
         label_visibility="collapsed",
-        help="Upload file thuế VAT (.csv / .xlsx)",
+        help="Upload file thuế VAT (.csv / .xlsx) — tự lưu local",
     )
     if tax_upload is not None:
         upload_sig = f"{tax_upload.name}:{tax_upload.size}"
@@ -978,20 +1059,29 @@ def _render_tax_sidebar() -> None:
                 st.error(f"Lỗi đọc file thuế: {e}")
 
     n_tax = len(_normalize_tax_df(st.session_state[TAX_SESSION_KEY]))
-    st.caption(f"Bảng thuế · {n_tax} dòng")
-    st.session_state[TAX_SESSION_KEY] = st.data_editor(
+    st.markdown(
+        f'<div class="tax-status"><b>{n_tax} dòng</b>'
+        f'<span class="muted">tự lưu · data/VAT_Tax.xlsx</span></div>',
+        unsafe_allow_html=True,
+    )
+    edited = st.data_editor(
         _prepare_tax_df_for_editor(st.session_state[TAX_SESSION_KEY]),
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
-        height=200,
+        height=260,
         column_config={
-            "Item number": st.column_config.TextColumn("Item"),
-            "Product name": st.column_config.TextColumn("Tên hàng"),
-            "Unit": st.column_config.TextColumn("ĐVT"),
-            "Vat": st.column_config.TextColumn("VAT"),
+            "Item number": st.column_config.TextColumn("Item", width="small"),
+            "Product name": st.column_config.TextColumn("Tên hàng", width="medium"),
+            "Unit": st.column_config.TextColumn("ĐVT", width="small"),
+            "Vat": st.column_config.TextColumn("VAT", width="small"),
         },
     )
+    edited_norm = _normalize_tax_df(edited)
+    prev_norm = _normalize_tax_df(st.session_state[TAX_SESSION_KEY])
+    st.session_state[TAX_SESSION_KEY] = edited
+    if not edited_norm.equals(prev_norm):
+        _persist_tax_df(edited_norm)
 
 
 def _clear_po_session() -> None:
@@ -1563,33 +1653,25 @@ def _process_upload(uploaded, so_prefix: str) -> None:
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### Cấu hình & thuế")
-    st.caption("Tiền tố SO · mẫu PO · bảng VAT dùng khi tách đơn")
-    with st.expander("Cấu hình", expanded=True):
-        cfg1, cfg2 = st.columns([1.45, 1], gap="small")
-        with cfg1:
-            so_prefix = st.text_input("Tiền tố SO", value="SO", help="Tiền tố số SO tạm khi tách đơn")
-        with cfg2:
-            st.markdown('<div style="height:1.55rem"></div>', unsafe_allow_html=True)
-            st.download_button(
-                "Mẫu PO",
-                data=_sample_bytes,
-                file_name=PO_TEMPLATE_XLSX,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key="sample_dl",
-                help="Tải file mẫu PO Import để điền và upload",
-            )
+    st.caption("Tiền tố SO · mẫu PO · bảng VAT")
 
-        st.markdown("**Bảng thuế VAT**")
-        st.caption("Map Item → VAT. Thiếu mã hàng sẽ chặn tách SO.")
-        _render_tax_sidebar()
+    cfg1, cfg2 = st.columns([1.4, 1], gap="small")
+    with cfg1:
+        so_prefix = st.text_input("Tiền tố SO", value="SO", help="Tiền tố số SO tạm khi tách đơn")
+    with cfg2:
+        st.markdown('<div style="height:1.55rem"></div>', unsafe_allow_html=True)
+        st.download_button(
+            "Mẫu PO",
+            data=_sample_bytes,
+            file_name=PO_TEMPLATE_XLSX,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key="sample_dl",
+            help="Tải file mẫu PO Import để điền và upload",
+        )
 
-        with st.expander("Quy tắc tách SO", expanded=False):
-            st.markdown(
-                "- Cùng **PO + KH + VAT** → 1 SO\n"
-                "- Khác VAT trong cùng PO → tách nhiều SO\n"
-                "- Xuất Header → D365 cấp Sales order → ghép Line"
-            )
+    st.divider()
+    _render_tax_sidebar()
 
 # ── Header + Upload ───────────────────────────────────────────────────────────
 _title_col, _upload_col = st.columns([2.75, 1], gap="small")

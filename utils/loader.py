@@ -10,8 +10,11 @@ import pandas as pd
 
 from config import OPTIONAL_FIELDS, REQUIRED_FIELDS
 
-PO_TEMPLATE_PATH = Path(__file__).resolve().parent.parent / "templates" / "PO Import_Template.csv"
-VAT_TEMPLATE_PATH = Path(__file__).resolve().parent.parent / "templates" / "VAT_Template.csv"
+ROOT_DIR = Path(__file__).resolve().parent.parent
+PO_TEMPLATE_PATH = ROOT_DIR / "templates" / "PO Import_Template.csv"
+VAT_TEMPLATE_PATH = ROOT_DIR / "templates" / "VAT_Template.csv"
+# Bảng thuế người dùng — lưu local, giữ sau F5 / mở lại app
+VAT_PERSIST_PATH = ROOT_DIR / "data" / "VAT_Tax.xlsx"
 
 _TEXT_COLUMN_ALIASES = {
     alias.strip().lower()
@@ -80,4 +83,23 @@ def load_vat_template() -> pd.DataFrame:
         except UnicodeDecodeError:
             continue
     return pd.read_csv(VAT_TEMPLATE_PATH, encoding="latin-1", dtype=str).fillna("")
+
+
+def load_vat_persisted() -> pd.DataFrame | None:
+    """Nap bang thue da luu (data/VAT_Tax.xlsx). Tra None neu chua co."""
+    if not VAT_PERSIST_PATH.exists():
+        return None
+    try:
+        df = pd.read_excel(VAT_PERSIST_PATH, engine="openpyxl", dtype=str)
+        return df.fillna("")
+    except Exception:
+        return None
+
+
+def save_vat_persisted(df: pd.DataFrame) -> Path:
+    """Ghi bang thue ra data/VAT_Tax.xlsx (tu tao thu muc)."""
+    VAT_PERSIST_PATH.parent.mkdir(parents=True, exist_ok=True)
+    export = df.copy().fillna("")
+    export.to_excel(VAT_PERSIST_PATH, index=False, sheet_name="Tax", engine="openpyxl")
+    return VAT_PERSIST_PATH
 
