@@ -63,10 +63,19 @@ def split_orders_by_po_and_item(
     }
 
     headers = []
+    # SO dau tien cua moi PO+KH (ke ca khi tach VAT) — khong highlight;
+    # cac SO tach them do khac thue — highlight.
+    first_so_of_po_kh: set[tuple] = set()
+
     for so, grp in work.groupby("so_number", sort=False):
         first = grp.iloc[0]
         po_kh = (first["po_number"], first["customer"])
         is_vat_split = po_kh in multi_vat_po_kh
+        is_primary_so = po_kh not in first_so_of_po_kh
+        if is_primary_so:
+            first_so_of_po_kh.add(po_kh)
+        # Chi to mau SO tach them (khong phai SO chinh / cung thue dau tien)
+        vat_split_hl = bool(is_vat_split and not is_primary_so)
 
         memo = ""
         if "notes" in grp.columns:
@@ -101,6 +110,7 @@ def split_orders_by_po_and_item(
                 "memo": memo,
                 "notes": " | ".join(note_parts),
                 "vat_split": is_vat_split,
+                "vat_split_hl": vat_split_hl,
                 "order_date": first.get("order_date", ""),
                 "delivery_date": first.get("delivery_date", ""),
                 "store_name": first.get("store_name", ""),

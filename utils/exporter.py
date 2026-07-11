@@ -16,6 +16,9 @@ from config import (
     EXPORT_DATETIME_FORMAT,
 )
 
+# Cot an danh dau dong tach VAT (bo truoc khi ghi Excel)
+VAT_SPLIT_HL_COL = "__vat_split_hl"
+
 _DATE_COLUMN_PATTERN = re.compile(
     r"date|datetime|ngay|ngày|ship|receipt|invoice|(?:^|[_\s])time|giờ|gio",
     re.IGNORECASE,
@@ -74,6 +77,8 @@ def format_dataframe_for_export(df: pd.DataFrame) -> pd.DataFrame:
 
     out = df.copy()
     for col in out.columns:
+        if str(col).startswith("__"):
+            continue
         if _is_date_column(col):
             out[col] = out[col].map(format_datetime_value)
     return out
@@ -82,6 +87,40 @@ def format_dataframe_for_export(df: pd.DataFrame) -> pd.DataFrame:
 def _format_customer_account(value) -> str:
     """Giu nguyen Store code, bao gom so 0 dau (vd: 00232)."""
     return str(value).strip()
+
+
+def _format_vat_display(value) -> str:
+    """Hien thi thue VAT dang phan tram (08l/10l -> 8%/10%)."""
+    text = str(value).strip() if value is not None else ""
+    if not text or text.lower() in {"nan", "none"}:
+        return ""
+    m = re.match(r"^0*(\d+)\s*%?\s*[lL]?$", text)
+    if m:
+        return f"{int(m.group(1))}%"
+    return text
+
+
+def _line_vat_values(df_lines: pd.DataFrame, df_header: pd.DataFrame) -> pd.Series:
+    """Lay ma VAT theo dong Line; thieu thi map tu Header theo SO."""
+    if "vat" in df_lines.columns:
+        vat = _series_text(df_lines, "vat")
+    else:
+        vat = pd.Series([""] * len(df_lines), index=df_lines.index, dtype=str)
+
+    if vat.ne("").all() or df_header is None or df_header.empty or "vat" not in df_header.columns:
+        return vat.map(_format_vat_display)
+
+    vat_by_so = {
+        str(r["so_number"]).strip(): _format_vat_display(r["vat"])
+        for _, r in df_header.iterrows()
+    }
+    if "temp_so_number" in df_lines.columns:
+        keys = df_lines["temp_so_number"].astype(str).str.strip()
+    else:
+        keys = df_lines["so_number"].astype(str).str.strip() if "so_number" in df_lines.columns else pd.Series([""] * len(df_lines))
+    from_header = keys.map(vat_by_so).fillna("")
+    filled = vat.where(vat.ne(""), from_header)
+    return filled.map(_format_vat_display)
 
 
 def _format_vat_purchaser_name(row: pd.Series) -> str:
@@ -247,6 +286,115 @@ def fill_missing_site_warehouse(
     return out
 
 
+def _vat_split_so_set(df_header: pd.DataFrame) -> set[str]:
+    """Tap SO tam can highlight (SO tach them do khac thue — khong gom SO chinh cung thue)."""
+    if df_header is None or df_header.empty or "so_number" not in df_header.columns:
+        return set()
+    flag_col = "vat_split_hl" if "vat_split_hl" in df_header.columns else "vat_split"
+    if flag_col not in df_header.columns:
+        return set()
+    mask = df_header[flag_col].fillna(False).astype(bool)
+    return set(df_header.loc[mask, "so_number"].astype(str).str.strip())
+
+
+def _vat_split_po_set(df_header: pd.DataFrame) -> set[str]:
+    """PO cua cac SO can highlight (chi SO tach them)."""
+    if df_header is None or df_header.empty or "po_number" not in df_header.columns:
+        return set()
+    flag_col = "vat_split_hl" if "vat_split_hl" in df_header.columns else None
+    if flag_col is None:
+        return set()
+    mask = df_header[flag_col].fillna(False).astype(bool)
+    return set(df_header.loc[mask, "po_number"].astype(str).str.strip())
+
+
+def apply_vat_split_row_flags(
+    df: pd.DataFrame,
+    df_header: pd.DataFrame,
+    mapping: dict[str, str] | None = None,
+    *,
+    for_line: bool = False,
+) -> pd.DataFrame:
+    """Danh dau dong Header/Line cua SO tach them do khac thue.
+
+    SO chinh (cung thue / Sales order dau) — khong danh dau.
+    """
+    out = df.copy()
+    if out.empty:
+        out[VAT_SPLIT_HL_COL] = []
+        return out
+
+    split_temps = _vat_split_so_set(df_header)
+    split_d365: set[str] = set()
+    if mapping:
+        split_d365 = {str(mapping[t]).strip() for t in split_temps if t in mapping and mapping[t]}
+
+    if not split_temps and not split_d365:
+        out[VAT_SPLIT_HL_COL] = False
+        return out
+
+    flags: list[bool] = []
+    for _, row in out.iterrows():
+        so_temp = str(row.get("Số SO#", row.get("so_number", ""))).strip()
+        so_d365 = str(row.get("Sales order", "")).strip()
+        temp_so_line = str(row.get("temp_so_number", "")).strip()
+
+        if for_line:
+            flagged = (
+                (temp_so_line and temp_so_line in split_temps)
+                or (so_d365 and so_d365 in split_d365)
+                or (so_d365 and so_d365 in split_temps)
+                or (so_temp and so_temp in split_temps)
+            )
+        else:
+            flagged = (so_temp and so_temp in split_temps) or (so_d365 and so_d365 in split_d365)
+        flags.append(bool(flagged))
+
+    out[VAT_SPLIT_HL_COL] = flags
+    return out
+
+
+def _attach_vat_split_flags(
+    d365_header: pd.DataFrame,
+    d365_line: pd.DataFrame,
+    df_header: pd.DataFrame,
+    df_lines: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Highlight Header + Line cua SO tach them (khac thue); SO chinh cung thue thi khong."""
+    header = d365_header.copy()
+    line = d365_line.copy()
+
+    flag_col = "vat_split_hl" if df_header is not None and "vat_split_hl" in df_header.columns else "vat_split"
+    if df_header is None or df_header.empty or flag_col not in df_header.columns:
+        header[VAT_SPLIT_HL_COL] = False
+        line[VAT_SPLIT_HL_COL] = False
+        return header, line
+
+    split_map = {
+        str(r["so_number"]).strip(): bool(r[flag_col])
+        for _, r in df_header.iterrows()
+    }
+    header[VAT_SPLIT_HL_COL] = (
+        header["Số SO#"].astype(str).str.strip().map(split_map).fillna(False).astype(bool)
+    )
+
+    if "temp_so_number" in df_lines.columns:
+        keys = df_lines["temp_so_number"].astype(str).str.strip()
+    elif "so_number" in df_lines.columns:
+        keys = df_lines["so_number"].astype(str).str.strip()
+    else:
+        keys = pd.Series([""] * len(line))
+
+    line_flags = keys.map(split_map).fillna(False).astype(bool)
+    if len(line_flags) == len(line):
+        line[VAT_SPLIT_HL_COL] = line_flags.to_numpy()
+    else:
+        line[VAT_SPLIT_HL_COL] = (
+            line["Sales order"].astype(str).str.strip().map(split_map).fillna(False).astype(bool)
+        )
+    return header, line
+
+
 def build_d365_files(df_header: pd.DataFrame, df_lines: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Chuyen df noi bo sang format cot Header/Line Template (theo mau xuat D365)."""
     now_text = datetime.now().strftime(EXPORT_DATETIME_FORMAT)
@@ -330,10 +478,12 @@ def build_d365_files(df_header: pd.DataFrame, df_lines: pd.DataFrame) -> tuple[p
             "Requested receipt date": df_lines.apply(
                 lambda r: _pick_header_date(r, "delivery_date", "order_date"), axis=1
             ).to_numpy(),
+            "Thuế VAT": _line_vat_values(df_lines, df_header).to_numpy(),
         }
     )
     d365_line = d365_line.reindex(columns=D365_LINE_COLUMNS).fillna("")
 
+    d365_header, d365_line = _attach_vat_split_flags(d365_header, d365_line, df_header, df_lines)
     return format_dataframe_for_export(d365_header), format_dataframe_for_export(d365_line)
 
 
@@ -342,8 +492,12 @@ def apply_sales_order_to_header(d365_header: pd.DataFrame, mapping: dict[str, st
     out = d365_header.copy()
     if "Số SO#" not in out.columns:
         return out
+    hl = out[VAT_SPLIT_HL_COL] if VAT_SPLIT_HL_COL in out.columns else None
     out["Sales order"] = out["Số SO#"].astype(str).str.strip().map(mapping).fillna("")
-    return out.reindex(columns=D365_HEADER_COLUMNS).fillna("")
+    out = out.reindex(columns=D365_HEADER_COLUMNS).fillna("")
+    if hl is not None:
+        out[VAT_SPLIT_HL_COL] = hl.to_numpy() if hasattr(hl, "to_numpy") else hl
+    return out
 
 
 def build_d365_export_filename(kind: str = "Header", suffix: str = "") -> str:
@@ -374,17 +528,50 @@ def _style_line_header(worksheet, columns: list[str]) -> None:
         cell.alignment = align
 
 
+def _style_vat_split_rows(worksheet, flags: list[bool], n_cols: int) -> None:
+    """Dong tach VAT: nen vang + chu do dam."""
+    from openpyxl.styles import Font, PatternFill
+
+    fill = PatternFill(start_color="FFFF99", end_color="FFFF99", fill_type="solid")
+    font = Font(color="FF0000", bold=True)
+    for i, flagged in enumerate(flags):
+        if not flagged:
+            continue
+        excel_row = i + 2  # bo qua header
+        for col_idx in range(1, n_cols + 1):
+            cell = worksheet.cell(row=excel_row, column=col_idx)
+            cell.fill = fill
+            cell.font = font
+
+
+def _pop_vat_split_flags(df: pd.DataFrame) -> tuple[pd.DataFrame, list[bool] | None]:
+    if VAT_SPLIT_HL_COL not in df.columns:
+        return df, None
+    flags = [
+        bool(v) and str(v).strip().lower() not in {"", "0", "false", "nan", "none"}
+        for v in df[VAT_SPLIT_HL_COL].tolist()
+    ]
+    return df.drop(columns=[VAT_SPLIT_HL_COL]), flags
+
+
 def to_excel_bytes(*sheets: tuple[str, pd.DataFrame]) -> bytes:
     """Ghi nhieu sheet vao bytes Excel — cot ngay da dinh dang dd/mm/yyyy."""
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         for sheet_name, df in sheets:
             export_df = format_dataframe_for_export(df)
+            export_df, hl_flags = _pop_vat_split_flags(export_df)
+            # Bo cot an neu con sot
+            drop_cols = [c for c in export_df.columns if str(c).startswith("__")]
+            if drop_cols:
+                export_df = export_df.drop(columns=drop_cols)
             export_df.to_excel(writer, sheet_name=sheet_name, index=False)
 
             worksheet = writer.sheets[sheet_name]
             if sheet_name == "Line":
                 _style_line_header(worksheet, list(export_df.columns))
+            if hl_flags:
+                _style_vat_split_rows(worksheet, hl_flags, len(export_df.columns))
             for col_idx, col_name in enumerate(export_df.columns, start=1):
                 if not _is_date_column(col_name):
                     continue

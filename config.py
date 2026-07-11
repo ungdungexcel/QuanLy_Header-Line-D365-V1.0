@@ -85,7 +85,7 @@ D365_HEADER_COLUMNS = [
     "Mode of delivery",
 ]
 
-# Cột export D365 Line theo mau Line Template
+# Cột export D365 Line theo mau Line Template (+ Thuế VAT cột O)
 D365_LINE_COLUMNS = [
     "Company",
     "Line status",
@@ -101,6 +101,7 @@ D365_LINE_COLUMNS = [
     "Unit price",
     "Net amount",
     "Requested receipt date",
+    "Thuế VAT",
 ]
 
 # Cot bat buoc tren Line Template (nen vang, chu do)

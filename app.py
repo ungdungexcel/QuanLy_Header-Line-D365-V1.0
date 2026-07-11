@@ -34,6 +34,7 @@ from utils.loader import (
 from utils.processor import build_vat_split_report, split_orders_by_po_and_item
 from utils.exporter import (
     apply_sales_order_to_header,
+    apply_vat_split_row_flags,
     build_d365_export_filename,
     build_d365_files,
     fill_missing_site_warehouse,
@@ -639,34 +640,68 @@ st.markdown(
         background: #fff !important;
     }
     div[data-testid="stExpander"]:has(.export-fold-mark) summary {
-        padding-top: 0.35rem !important;
-        padding-bottom: 0.35rem !important;
-        font-size: 0.9rem !important;
+        padding-top: 0.3rem !important;
+        padding-bottom: 0.3rem !important;
+        font-size: 0.88rem !important;
         font-weight: 600 !important;
     }
     .export-fold-mark { display: none; }
-    /* Nút action ngắn + upload gọn trong Thao tác */
+    /* Nút + upload Header D365 — cố định độ rộng, không kéo full ngang */
+    div[data-testid="column"]:has(.export-btn-anchor) {
+        flex: 0 0 8.5rem !important;
+        width: 8.5rem !important;
+        min-width: 8.5rem !important;
+        max-width: 8.5rem !important;
+    }
     div[data-testid="column"]:has(.export-btn-anchor) div[data-testid="stDownloadButton"] {
-        width: fit-content !important;
-        max-width: 9rem !important;
+        width: 100% !important;
+        max-width: 8.5rem !important;
         margin: 0 !important;
     }
     div[data-testid="column"]:has(.export-btn-anchor) div[data-testid="stDownloadButton"] > button {
-        width: auto !important;
-        min-width: 6.25rem !important;
-        max-width: 9rem !important;
-        min-height: 1.75rem !important;
-        height: 1.75rem !important;
-        padding: 0.12rem 0.55rem !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 8.5rem !important;
+        min-height: 1.7rem !important;
+        height: 1.7rem !important;
+        padding: 0.1rem 0.45rem !important;
         font-size: 0.8rem !important;
         font-weight: 600 !important;
         white-space: nowrap !important;
         border-radius: 5px !important;
     }
+    div[data-testid="column"]:has(.export-upload-anchor) {
+        flex: 0 0 16rem !important;
+        width: 16rem !important;
+        min-width: 16rem !important;
+        max-width: 16rem !important;
+    }
+    div[data-testid="column"]:has(.export-upload-anchor) [data-testid="stFileUploader"],
+    div[data-testid="column"]:has(.export-upload-anchor) [data-testid="stFileUploader"] > div,
+    div[data-testid="column"]:has(.export-upload-anchor) [data-testid="stFileUploader"] section,
+    div[data-testid="column"]:has(.export-upload-anchor) [data-testid="stFileUploader"] [data-testid="stFileUploaderFileList"],
+    div[data-testid="column"]:has(.export-upload-anchor) [data-testid="stFileUploader"] ul {
+        width: 100% !important;
+        max-width: 16rem !important;
+    }
     div[data-testid="stHorizontalBlock"]:has(.export-btn-anchor) {
         align-items: center !important;
-        gap: 0.35rem !important;
-        margin-bottom: 0.1rem !important;
+        gap: 0.4rem !important;
+        margin-bottom: 0 !important;
+        justify-content: flex-start !important;
+    }
+    /* Alert lỗi trong Thao tác — gọn, không kéo full màn */
+    div[data-testid="stExpander"]:has(.export-fold-mark)
+        [data-testid="stAlert"] {
+        padding: 0.35rem 0.65rem !important;
+        margin: 0.25rem 0 0 !important;
+        max-width: 42rem !important;
+    }
+    div[data-testid="stExpander"]:has(.export-fold-mark)
+        [data-testid="stAlert"] [data-testid="stMarkdownContainer"] p {
+        font-size: 0.85rem !important;
+        margin: 0 !important;
+        line-height: 1.35 !important;
     }
     /* Hàng nút Tải file — sát bảng, sát phải */
     .export-dl-bar { display: none; }
@@ -1217,6 +1252,12 @@ def _render_export_tab(df_header: pd.DataFrame, df_lines: pd.DataFrame) -> None:
                 d365_line_final, df_header, overwrite=True
             )
 
+            # Highlight Header + Line thuoc SO tach VAT (SO/mat hang cung thue thi khong)
+            header_out = apply_vat_split_row_flags(header_out, df_header, mapping)
+            d365_line_final = apply_vat_split_row_flags(
+                d365_line_final, df_header, mapping, for_line=True
+            )
+
             final_sheets: list[tuple[str, pd.DataFrame]] = [
                 ("Header", header_out),
                 ("Line", d365_line_final),
@@ -1267,13 +1308,13 @@ def _render_export_tab(df_header: pd.DataFrame, df_lines: pd.DataFrame) -> None:
     # Sau khi import Header D365 thành công → tự rút gọn nhóm Thao tác
     action_title = (
         "Thao tác — Xuất Header / Upload D365"
-        + ("  ·  Đã import" if mapped else "  ·  Chưa import Header D365")
+        + (" · Đã import" if mapped else " · Chưa import")
     )
     with st.expander(action_title, expanded=not mapped):
         st.markdown('<div class="export-fold-mark"></div>', unsafe_allow_html=True)
 
-        # Cùng 1 hàng: Xuất Header | Upload
-        btn1, up1 = st.columns([0.7, 3.3], gap="small")
+        # Cùng 1 hàng: Xuất Header | Upload (độ rộng cố định, không full ngang)
+        btn1, up1, _pad = st.columns([1.1, 2.2, 4.5], gap="small")
         with btn1:
             st.markdown('<div class="export-btn-anchor"></div>', unsafe_allow_html=True)
             st.download_button(
@@ -1281,11 +1322,12 @@ def _render_export_tab(df_header: pd.DataFrame, df_lines: pd.DataFrame) -> None:
                 data=header_xlsx,
                 file_name=header_name,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=False,
+                use_container_width=True,
                 type="secondary",
                 key="export_header_xlsx",
             )
         with up1:
+            st.markdown('<div class="export-upload-anchor"></div>', unsafe_allow_html=True)
             d365_header_upload = st.file_uploader(
                 "Header D365",
                 type=["csv", "xlsx", "xls"],
@@ -1293,6 +1335,8 @@ def _render_export_tab(df_header: pd.DataFrame, df_lines: pd.DataFrame) -> None:
                 label_visibility="collapsed",
                 help="Upload Header đã có cột Sales order từ D365",
             )
+        with _pad:
+            st.empty()
 
         if d365_header_upload is not None:
             upload_sig = f"{d365_header_upload.name}:{d365_header_upload.size}"
@@ -1301,7 +1345,7 @@ def _render_export_tab(df_header: pd.DataFrame, df_lines: pd.DataFrame) -> None:
                     raw_d365_header = load_d365_header_file(d365_header_upload)
                     import_df, parse_errors = parse_d365_header_import(raw_d365_header)
                     if parse_errors:
-                        _error_table(parse_errors, "Lỗi đọc Header D365", "error")
+                        _error_table(parse_errors, "Lỗi đọc Header D365", "error", compact=True)
                     else:
                         merged_lines, mapping, line_errors, map_warnings = merge_d365_header_with_lines(
                             df_lines, import_df, df_header
@@ -1321,10 +1365,15 @@ def _render_export_tab(df_header: pd.DataFrame, df_lines: pd.DataFrame) -> None:
                     st.error(f"Không đọc được file Header D365: {e}")
 
         if st.session_state.get("d365_so_mapping"):
-            _error_table(st.session_state.get("d365_merge_warnings", []), "Cảnh báo map SO", "warning")
+            _error_table(
+                st.session_state.get("d365_merge_warnings", []),
+                "Cảnh báo map SO",
+                "warning",
+                compact=True,
+            )
             merge_errors = st.session_state.get("d365_merge_line_errors", [])
             if merge_errors:
-                _error_table(merge_errors, "Lỗi ghép Line", "error")
+                _error_table(merge_errors, "Lỗi ghép Line", "error", compact=True)
 
     # ═══ 3. DETAILED DATA — tabs + bảng, nút tải dưới cùng bên phải ═══════
     detail_title = (
@@ -1435,9 +1484,32 @@ def _show_df(df: pd.DataFrame, *, height: int = 360) -> None:
     st.dataframe(df, use_container_width=True, hide_index=True, height=height)
 
 
-def _error_table(errors: list[dict], title: str, level: str) -> None:
+def _error_table(errors: list[dict], title: str, level: str, *, compact: bool = False) -> None:
     if not errors:
         return
+    if compact and len(errors) <= 3:
+        msgs = []
+        for e in errors:
+            msg = str(e.get("message", "")).strip()
+            row = e.get("row", "")
+            field = e.get("field", "")
+            prefix = ""
+            if row not in ("", "-", None) and str(row).strip() not in ("", "-"):
+                prefix = f"Dòng {row}"
+                if field:
+                    prefix += f" · {field}"
+                prefix += ": "
+            elif field:
+                prefix = f"{field}: "
+            msgs.append(f"{prefix}{msg}" if msg else prefix.rstrip(": "))
+        body = " · ".join(m for m in msgs if m)
+        text = f"**{title}** — {body}" if body else f"**{title}** — {len(errors)} lỗi"
+        if level == "error":
+            st.error(text)
+        else:
+            st.warning(text)
+        return
+
     df_err = pd.DataFrame(errors)[["row", "field", "message"]].rename(
         columns={"row": "Dòng", "field": "Trường", "message": "Mô tả"}
     )
@@ -1445,7 +1517,17 @@ def _error_table(errors: list[dict], title: str, level: str) -> None:
         st.error(f"**{title}** — {len(errors)} lỗi")
     else:
         st.warning(f"**{title}** — {len(errors)} cảnh báo")
-    st.dataframe(df_err, use_container_width=True, hide_index=True, height=min(40 + len(errors) * 35, 280))
+    st.dataframe(
+        df_err,
+        use_container_width=True,
+        hide_index=True,
+        height=min(38 + len(errors) * 32, 200 if compact else 280),
+        column_config={
+            "Dòng": st.column_config.TextColumn(width="small"),
+            "Trường": st.column_config.TextColumn(width="small"),
+            "Mô tả": st.column_config.TextColumn(width="large"),
+        },
+    )
 
 
 def _process_upload(uploaded, so_prefix: str) -> None:
